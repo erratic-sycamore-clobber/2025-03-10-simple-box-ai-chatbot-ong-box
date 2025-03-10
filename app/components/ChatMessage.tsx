@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Message, Role } from '../types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { AI_MODELS } from '../utils';
 
 interface ChatMessageProps {
   message: Message;
@@ -67,7 +68,22 @@ export default function ChatMessage({ message, isFirst = false }: ChatMessagePro
               {message.content}
             </ReactMarkdown>
           </div>
-          <div className="timestamp mt-1 text-end">
+          <div className="timestamp mt-1 text-end d-flex justify-content-end align-items-center">
+            {message.model && !isUser && (
+              <span className="badge bg-light text-dark me-2 small model-badge">
+                <i className="bi bi-cpu me-1 small"></i>
+                {(() => {
+                  // Get a short display name for the model
+                  const model = AI_MODELS.find(m => m.id === message.model);
+                  if (model) {
+                    // Return just the model type (e.g., "GPT-4o Mini" from "Azure GPT-4o Mini")
+                    const parts = model.name.split(' ');
+                    return parts.length > 1 ? parts.slice(1).join(' ') : model.name;
+                  }
+                  return message.model.split('_').slice(-1)[0].toUpperCase();
+                })()}
+              </span>
+            )}
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>

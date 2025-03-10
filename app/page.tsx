@@ -4,17 +4,22 @@ import { useState, useEffect, useRef } from 'react';
 import ChatContainer from './components/ChatContainer';
 import ChatInput from './components/ChatInput';
 import ThemeToggle from './components/ThemeToggle';
+import ModelSelector from './components/ModelSelector';
 import { Message, Role } from './types';
 import { generateId } from './utils/index';
+import { AI_MODELS } from './utils';
 
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>('azure__openai__gpt_4o_mini');
+  const [modelChanged, setModelChanged] = useState<boolean>(false);
 
-  // Load messages from localStorage on initial load
+  // Load messages and settings from localStorage on initial load
   useEffect(() => {
+    // Load saved messages
     const savedMessages = localStorage.getItem('chatMessages');
     if (savedMessages) {
       try {
@@ -29,6 +34,12 @@ export default function Home() {
         console.error('Error parsing saved messages:', error);
       }
     }
+    
+    // Load saved model preference
+    const savedModel = localStorage.getItem('selectedModel');
+    if (savedModel) {
+      setSelectedModel(savedModel);
+    }
   }, []);
 
   // Save messages to localStorage whenever they change
@@ -37,6 +48,24 @@ export default function Home() {
       localStorage.setItem('chatMessages', JSON.stringify(messages));
     }
   }, [messages]);
+  
+  // Save selected model to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('selectedModel', selectedModel);
+    
+    // If model changed and there's an active conversation, add a system message
+    if (modelChanged && messages.length > 0) {
+      const modelName = AI_MODELS.find(m => m.id === selectedModel)?.name || selectedModel;
+      const systemMessage: Message = {
+        id: generateId(),
+        role: Role.Assistant,
+        content: `Model changed to ${modelName}. Subsequent responses will use this model.`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, systemMessage]);
+      setModelChanged(false);
+    }
+  }, [selectedModel, modelChanged, messages.length]);
 
   const handleSendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -69,7 +98,10 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ messages: allMessages }),
+        body: JSON.stringify({ 
+          messages: allMessages,
+          model: selectedModel
+        }),
       });
 
       const data = await response.json();
@@ -84,6 +116,7 @@ export default function Home() {
         role: Role.Assistant,
         content: data.response,
         timestamp: new Date(),
+        model: selectedModel, // Store which model generated this response
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -97,6 +130,7 @@ export default function Home() {
         role: Role.Assistant,
         content: "I'm sorry, I encountered an error processing your request. Please try again.",
         timestamp: new Date(),
+        model: selectedModel, // Include model info even for error messages
       };
 
       setMessages((prev) => [...prev, errorMessage]);
@@ -127,7 +161,7 @@ export default function Home() {
   }, [messages]);
 
   return (
-    <div className="chat-interface min-vh-100 d-flex flex-column">
+    <div className="chat-interface vh-100 d-flex flex-column">
       <div className="container-fluid p-0 d-flex flex-column h-100">
         <header className="app-header py-3 px-4 d-flex justify-content-between align-items-center border-bottom position-sticky top-0 z-1">
           <div className="d-flex align-items-center">
@@ -137,6 +171,16 @@ export default function Home() {
             </h1>
           </div>
           <div className="d-flex align-items-center gap-3">
+            <ModelSelector 
+              models={AI_MODELS} 
+              selectedModel={selectedModel} 
+              onChange={(model: string) => {
+                if (model !== selectedModel && messages.length > 0) {
+                  setModelChanged(true);
+                }
+                setSelectedModel(model);
+              }} 
+            />
             <ThemeToggle />
             {messages.length > 0 && (
               <button 
