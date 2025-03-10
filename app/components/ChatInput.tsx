@@ -79,7 +79,7 @@ export default function ChatInput({ onSendMessage, isLoading, maxCharacters = 10
                              'text-muted';
 
   return (
-    <div className="chat-input-container theme-transition">
+    <div className="chat-input-container">
       <form onSubmit={handleSubmit} className="position-relative">
         {/* Character counter - moved above textarea */}
         <div className={`character-counter small mb-1 text-end ${characterCountClass}`}>
@@ -103,7 +103,8 @@ export default function ChatInput({ onSendMessage, isLoading, maxCharacters = 10
           <button
             type="submit"
             disabled={!input.trim() || isLoading || characterCount > maxCharacters}
-            className="send-button position-absolute end-0 bottom-0 me-2 mb-2"
+            className="btn btn-primary position-absolute end-0 bottom-0 me-2 mb-2 rounded-circle p-0 d-flex align-items-center justify-content-center"
+            style={{ width: "38px", height: "38px" }}
             aria-label="Send message"
           >
             {isLoading ? (

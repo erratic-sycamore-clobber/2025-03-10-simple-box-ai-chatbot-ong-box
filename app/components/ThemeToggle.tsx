@@ -5,18 +5,17 @@ import { useEffect, useState } from 'react';
 export default function ThemeToggle() {
   const [isDark, setIsDark] = useState(false);
 
-  // Initialize theme from localStorage on component mount
+  // Initialize theme state from localStorage or system preference on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const shouldBeDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
     
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-      setIsDark(true);
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      setIsDark(false);
-      document.documentElement.setAttribute('data-theme', 'light');
-    }
+    // Ensure our state matches the actual theme in the document
+    setIsDark(shouldBeDark);
+    
+    // Also initialize the document theme (should match BootstrapClient)
+    document.documentElement.setAttribute('data-bs-theme', shouldBeDark ? 'dark' : 'light');
   }, []);
 
   const toggleTheme = () => {
@@ -24,14 +23,23 @@ export default function ThemeToggle() {
     setIsDark(!isDark);
     
     // Update DOM and localStorage
-    document.documentElement.setAttribute('data-theme', newTheme);
+    document.documentElement.setAttribute('data-bs-theme', newTheme);
+    
+    // Store theme in localStorage
     localStorage.setItem('theme', newTheme);
+    
+    // Dispatch storage event for other components to react to
+    // (This helps with cross-component communication)
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'theme',
+      newValue: newTheme
+    }));
   };
 
   return (
     <button 
       onClick={toggleTheme}
-      className="theme-toggle-btn bg-transparent border-0 d-flex align-items-center justify-content-center p-0"
+      className="btn btn-link text-body p-0 d-flex align-items-center justify-content-center"
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >

@@ -16,6 +16,7 @@ export default function Home() {
   const [isStreamingResponse, setIsStreamingResponse] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('azure__openai__gpt_4o_mini');
   const [modelChanged, setModelChanged] = useState<boolean>(false);
+  const [contextCleared, setContextCleared] = useState<boolean>(false);
 
   // Load messages and settings from localStorage on initial load
   useEffect(() => {
@@ -84,9 +85,24 @@ export default function Home() {
     setIsLoading(true);
     setIsStreamingResponse(true);
 
+    // Track response time
+    const startTime = performance.now();
+
     try {
-      // Prepare all messages for the API
-      const allMessages = [...messages, userMessage].map(msg => ({
+      // Prepare all messages for the API, respecting context cleared flag
+      let messagesToSend;
+      
+      if (contextCleared) {
+        // If context was cleared, only send the current message
+        messagesToSend = [userMessage];
+        // Reset the flag after using it
+        setContextCleared(false);
+      } else {
+        // Otherwise send all messages
+        messagesToSend = [...messages, userMessage];
+      }
+      
+      const allMessages = messagesToSend.map(msg => ({
         role: msg.role,
         content: msg.content,
         timestamp: msg.timestamp.toISOString(),
@@ -104,6 +120,10 @@ export default function Home() {
         }),
       });
 
+      // Calculate response time
+      const endTime = performance.now();
+      const responseTimeMs = Math.round(endTime - startTime);
+
       const data = await response.json();
 
       if (!response.ok) {
@@ -117,12 +137,17 @@ export default function Home() {
         content: data.response,
         timestamp: new Date(),
         model: selectedModel, // Store which model generated this response
+        responseTimeMs, // Store response time
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error: any) {
       console.error('Error sending message:', error);
       setError(error.message || 'An error occurred while processing your request');
+      
+      // Calculate response time even for errors
+      const endTime = performance.now();
+      const responseTimeMs = Math.round(endTime - startTime);
       
       // Add error message from assistant
       const errorMessage: Message = {
@@ -131,6 +156,7 @@ export default function Home() {
         content: "I'm sorry, I encountered an error processing your request. Please try again.",
         timestamp: new Date(),
         model: selectedModel, // Include model info even for error messages
+        responseTimeMs, // Include response time for error messages
       };
 
       setMessages((prev) => [...prev, errorMessage]);
@@ -143,6 +169,21 @@ export default function Home() {
   const handleClearChat = () => {
     setMessages([]);
     localStorage.removeItem('chatMessages');
+    setError(null);
+    setContextCleared(false);
+  };
+  
+  const handleClearContext = () => {
+    // Add a system message indicating context has been cleared
+    const systemMessage: Message = {
+      id: generateId(),
+      role: Role.Assistant,
+      content: "🔄 Context cleared. The AI will respond to your next message without considering previous conversation history.",
+      timestamp: new Date(),
+    };
+    
+    setMessages(prev => [...prev, systemMessage]);
+    setContextCleared(true);
     setError(null);
   };
   
@@ -161,26 +202,16 @@ export default function Home() {
   }, [messages]);
 
   return (
-    <div className="chat-interface vh-100 d-flex flex-column">
+    <div className="vh-100 d-flex flex-column">
       <div className="container-fluid p-0 d-flex flex-column h-100">
-        <header className="app-header py-3 px-4 d-flex justify-content-between align-items-center border-bottom position-sticky top-0 z-1">
+        <header className="bg-body-tertiary py-3 px-4 d-flex justify-content-between align-items-center border-bottom position-sticky top-0 z-1">
           <div className="d-flex align-items-center">
-            <h1 className="h5 mb-0 box-blue fw-semibold">
+            <h1 className="h5 mb-0 text-primary fw-semibold">
               <i className="bi bi-chat-square-text me-2"></i>
               Box AI Chat
             </h1>
           </div>
           <div className="d-flex align-items-center gap-3">
-            <ModelSelector 
-              models={AI_MODELS} 
-              selectedModel={selectedModel} 
-              onChange={(model: string) => {
-                if (model !== selectedModel && messages.length > 0) {
-                  setModelChanged(true);
-                }
-                setSelectedModel(model);
-              }} 
-            />
             <ThemeToggle />
             {messages.length > 0 && (
               <button 
@@ -210,7 +241,7 @@ export default function Home() {
             />
           </div>
           
-          <div className="input-container px-4 py-4 mt-auto border-top position-sticky bottom-0 z-1 theme-transition">
+          <div className="bg-body-tertiary px-4 py-4 mt-auto border-top position-sticky bottom-0 z-1">
             {isStreamingResponse && (
               <div className="spinner-container mb-2">
                 <div className="loading-dots">
@@ -220,6 +251,32 @@ export default function Home() {
                 </div>
               </div>
             )}
+            
+            {/* Controls above input */}
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <ModelSelector 
+                models={AI_MODELS} 
+                selectedModel={selectedModel} 
+                onChange={(model: string) => {
+                  if (model !== selectedModel && messages.length > 0) {
+                    setModelChanged(true);
+                  }
+                  setSelectedModel(model);
+                }} 
+              />
+              
+              {messages.length > 0 && (
+                <button 
+                  onClick={handleClearContext}
+                  className="btn btn-sm btn-outline-primary ms-3"
+                  aria-label="Clear context"
+                  title="Clear conversation context while keeping message history"
+                >
+                  <i className="bi bi-arrow-clockwise me-1"></i>
+                  Clear Context
+                </button>
+              )}
+            </div>
             
             <ChatInput onSendMessage={handleSendMessage} isLoading={isLoading} />
             <div className="text-center mt-3">

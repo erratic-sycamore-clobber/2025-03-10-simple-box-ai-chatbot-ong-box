@@ -25,11 +25,11 @@ export default function ChatMessage({ message, isFirst = false }: ChatMessagePro
   };
 
   return (
-    <div className={`row mb-4 theme-transition ${isUser ? 'justify-content-end' : 'justify-content-start'}`}>
+    <div className={`row mb-4 ${isUser ? 'justify-content-end' : 'justify-content-start'}`}>
       {!isUser && (
         <div className="col-auto d-none d-md-block me-2">
           <div 
-            className="rounded-circle bg-box-blue d-flex align-items-center justify-content-center"
+            className="rounded-circle bg-primary d-flex align-items-center justify-content-center"
             style={{ width: '32px', height: '32px' }}
           >
             <i className="bi bi-robot text-white small"></i>
@@ -40,7 +40,7 @@ export default function ChatMessage({ message, isFirst = false }: ChatMessagePro
       <div className={`col-${isUser ? '10' : '10'} col-md-${isUser ? '7' : '8'}`}>
         <div 
           ref={messageRef}
-          className={`position-relative theme-transition ${
+          className={`position-relative ${
             isUser 
               ? 'message-user' 
               : 'message-assistant'
@@ -50,7 +50,7 @@ export default function ChatMessage({ message, isFirst = false }: ChatMessagePro
           {!isUser && (
             <button 
               onClick={copyToClipboard}
-              className="copy-button position-absolute top-0 end-0 bg-transparent border-0 p-2"
+              className="copy-button position-absolute top-0 end-0 bg-transparent border-0 p-2 text-body-secondary"
               title="Copy to clipboard"
               aria-label="Copy to clipboard"
             >
@@ -68,9 +68,10 @@ export default function ChatMessage({ message, isFirst = false }: ChatMessagePro
               {message.content}
             </ReactMarkdown>
           </div>
-          <div className="timestamp mt-1 text-end d-flex justify-content-end align-items-center">
+          <div className="timestamp mt-1 text-end d-flex justify-content-end align-items-center gap-2">
+            {/* Model badge */}
             {message.model && !isUser && (
-              <span className="badge bg-light text-dark me-2 small model-badge">
+              <span className="badge bg-secondary bg-opacity-10 text-body small model-badge">
                 <i className="bi bi-cpu me-1 small"></i>
                 {(() => {
                   // Get a short display name for the model
@@ -84,7 +85,25 @@ export default function ChatMessage({ message, isFirst = false }: ChatMessagePro
                 })()}
               </span>
             )}
-            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            
+            {/* Response time */}
+            {message.responseTimeMs && !isUser && (
+              <span className="badge bg-secondary bg-opacity-10 text-body small model-badge">
+                <i className="bi bi-stopwatch me-1 small"></i>
+                {(() => {
+                  // Format the response time in seconds or milliseconds
+                  const ms = message.responseTimeMs;
+                  return ms >= 1000 
+                    ? `${(ms / 1000).toFixed(1)}s`  // Show in seconds for times ≥ 1 second
+                    : `${ms}ms`;                    // Show in milliseconds otherwise
+                })()}
+              </span>
+            )}
+            
+            {/* Timestamp */}
+            <span>
+              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
           </div>
         </div>
       </div>

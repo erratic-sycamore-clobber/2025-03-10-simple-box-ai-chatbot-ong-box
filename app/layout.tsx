@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+// Use the official Bootstrap CDN for the latest version with dark mode support
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import BootstrapClient from './components/BootstrapClient';
@@ -16,7 +17,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className="bg-body">
         {children}
         <BootstrapClient />
       </body>

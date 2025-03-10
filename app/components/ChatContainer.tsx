@@ -41,11 +41,11 @@ export default function ChatContainer({ messages, onSamplePromptClick }: ChatCon
   };
 
   return (
-    <div className="chat-container theme-transition h-100">
+    <div className="chat-container h-100">
       {messages.length === 0 ? (
         <div className="welcome-container d-flex flex-column align-items-center justify-content-center text-center h-100">
           <div className="logo-container mb-4">
-            <div className="bg-box-blue d-inline-flex justify-content-center align-items-center rounded-circle p-3" 
+            <div className="bg-primary d-inline-flex justify-content-center align-items-center rounded-circle p-3" 
                  style={{ width: '80px', height: '80px' }}>
               <i className="bi bi-chat-square-text text-white fs-2"></i>
             </div>
@@ -55,7 +55,7 @@ export default function ChatContainer({ messages, onSamplePromptClick }: ChatCon
             {SAMPLE_PROMPTS.map((prompt, index) => (
               <div className="col-md-6 mb-3" key={index}>
                 <div 
-                  className="p-3 suggestion-card border rounded-3 text-start shadow-sm"
+                  className="p-3 border rounded-3 text-start shadow-sm bg-body-tertiary cursor-pointer"
                   onClick={() => handleSamplePromptClick(prompt.title)}
                 >
                   <p className="fw-medium mb-1">{prompt.title}</p>

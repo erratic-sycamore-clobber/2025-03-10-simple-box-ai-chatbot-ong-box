@@ -9,6 +9,7 @@ export interface Message {
   content: string;
   timestamp: Date;
   model?: string; // Optional model used to generate this message
+  responseTimeMs?: number; // Time taken to generate response in milliseconds
 }
 
 export interface ChatSession {
