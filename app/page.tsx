@@ -17,6 +17,8 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState<string>('azure__openai__gpt_4o_mini');
   const [modelChanged, setModelChanged] = useState<boolean>(false);
   const [contextCleared, setContextCleared] = useState<boolean>(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regeneratingMessageId, setRegeneratingMessageId] = useState<string | null>(null);
 
   // Load messages and settings from localStorage on initial load
   useEffect(() => {
@@ -190,6 +192,100 @@ export default function Home() {
   const handleSamplePrompt = (prompt: string) => {
     handleSendMessage(prompt);
   };
+  
+  // Handle regenerating a response
+  const handleRegenerateResponse = async (messageId: string, withHistory: boolean) => {
+    if (isRegenerating || isLoading) return;
+    
+    setError(null);
+    setIsRegenerating(true);
+    setRegeneratingMessageId(messageId);
+    
+    // Find the message to regenerate
+    const messageIndex = messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1 || messageIndex === 0) {
+      setError("Invalid message for regeneration");
+      setIsRegenerating(false);
+      setRegeneratingMessageId(null);
+      return;
+    }
+    
+    // Get the user message that prompted this assistant message
+    const userMessage = messages[messageIndex - 1];
+    
+    // Track response time
+    const startTime = performance.now();
+    
+    try {
+      // Prepare messages for the API
+      let messagesToSend;
+      
+      if (withHistory) {
+        // Include conversation history up to the user message
+        messagesToSend = messages.slice(0, messageIndex);
+      } else {
+        // Only include the user message that prompted this response
+        messagesToSend = [userMessage];
+      }
+      
+      const allMessages = messagesToSend.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+        timestamp: msg.timestamp.toISOString(),
+      }));
+      
+      // Call API
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          messages: allMessages,
+          model: selectedModel
+        }),
+      });
+      
+      // Calculate response time
+      const endTime = performance.now();
+      const responseTimeMs = Math.round(endTime - startTime);
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'Failed to get a response');
+      }
+      
+      // Create new variant response
+      const newVariant: ResponseVariant = {
+        id: generateId(),
+        content: data.response,
+        timestamp: new Date(),
+        model: selectedModel,
+        responseTimeMs,
+        withHistory: withHistory
+      };
+      
+      // Update the message with the new variant
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          // Add the variant to the existing variants array or create a new array
+          const variants = msg.variants ? [...msg.variants, newVariant] : [newVariant];
+          return {
+            ...msg,
+            variants
+          };
+        }
+        return msg;
+      }));
+    } catch (error: any) {
+      console.error('Error regenerating response:', error);
+      setError(error.message || 'An error occurred while regenerating the response');
+    } finally {
+      setIsRegenerating(false);
+      setRegeneratingMessageId(null);
+    }
+  };
 
   // Auto-scroll to bottom container when new messages are added
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -238,6 +334,9 @@ export default function Home() {
             <ChatContainer 
               messages={messages}
               onSamplePromptClick={handleSamplePrompt}
+              onRegenerateResponse={handleRegenerateResponse}
+              isRegenerating={isRegenerating}
+              regeneratingMessageId={regeneratingMessageId || undefined}
             />
           </div>
           

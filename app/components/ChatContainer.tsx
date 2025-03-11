@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Message } from '../types';
 import ChatMessage from './ChatMessage';
 
 interface ChatContainerProps {
   messages: Message[];
   onSamplePromptClick?: (prompt: string) => void;
+  onRegenerateResponse?: (messageId: string, withHistory: boolean) => void;
+  isRegenerating?: boolean;
+  regeneratingMessageId?: string;
 }
 
 // Sample prompts for the empty state
@@ -27,7 +30,13 @@ const SAMPLE_PROMPTS = [
   }
 ];
 
-export default function ChatContainer({ messages, onSamplePromptClick }: ChatContainerProps) {
+export default function ChatContainer({ 
+  messages, 
+  onSamplePromptClick,
+  onRegenerateResponse,
+  isRegenerating = false,
+  regeneratingMessageId
+}: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll is now handled at the parent level
@@ -67,21 +76,37 @@ export default function ChatContainer({ messages, onSamplePromptClick }: ChatCon
         </div>
       ) : (
         <div className="container py-4 px-md-4">
-          {messages.map((message, index) => (
-            <ChatMessage key={message.id} message={message} isFirst={index === 0} />
-          ))}
+          {messages.map((message, index) => {
+            // Find the last meaningful AI message for regeneration
+            let isLastMeaningfulAIMessage = false;
+            
+            // Only Box AI responses can be regenerated (must have model and responseTimeMs properties)
+            if (message.role === 'assistant' && message.model && message.responseTimeMs) {
+              
+              // Check if this is the last meaningful AI message
+              isLastMeaningfulAIMessage = true;
+              for (let i = index + 1; i < messages.length; i++) {
+                const laterMsg = messages[i];
+                // If we find a later Box AI response, this is not the latest one
+                if (laterMsg.role === 'assistant' && laterMsg.model && laterMsg.responseTimeMs) {
+                  isLastMeaningfulAIMessage = false;
+                  break;
+                }
+              }
+            }
+            
+            return (
+              <ChatMessage 
+                key={message.id} 
+                message={message} 
+                isFirst={index === 0}
+                // Only pass regeneration handler to the last meaningful AI message
+                onRegenerateResponse={isLastMeaningfulAIMessage ? onRegenerateResponse : undefined}
+                isRegenerating={isRegenerating && message.id === regeneratingMessageId}
+              />
+            );
+          })}
           <div ref={messagesEndRef} className="pt-3" />
-          
-          {/* Loading indicator for incoming messages */}
-          {false && ( // This will be controlled by props later
-            <div className="spinner-container">
-              <div className="loading-dots">
-                <div></div>
-                <div></div>
-                <div></div>
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

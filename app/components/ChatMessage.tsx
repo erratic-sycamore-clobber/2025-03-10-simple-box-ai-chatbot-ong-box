@@ -1,22 +1,37 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Message, Role } from '../types';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AI_MODELS } from '../utils';
+import ResponseVariants from './ResponseVariants';
 
 interface ChatMessageProps {
   message: Message;
   isFirst?: boolean;
+  onRegenerateResponse?: (messageId: string, withHistory: boolean) => void;
+  isRegenerating?: boolean;
 }
 
-export default function ChatMessage({ message, isFirst = false }: ChatMessageProps) {
+export default function ChatMessage({ 
+  message, 
+  isFirst = false, 
+  onRegenerateResponse, 
+  isRegenerating = false 
+}: ChatMessageProps) {
   const isUser = message.role === Role.User;
   const [copySuccess, setCopySuccess] = useState(false);
   const messageRef = useRef<HTMLDivElement>(null);
+  const hasVariants = !isUser && message.variants && message.variants.length > 0;
   
-  const copyToClipboard = async () => {
+  // Determine if this is a meaningful AI response from Box AI
+  const isBoxAIResponse = !isUser && message.model && message.responseTimeMs;
+  
+  // If it's an assistant message but not a Box AI response, it's a system message
+  const isSystemMessage = !isUser && !isBoxAIResponse;
+  
+  const copyToClipboard = async (content: string = message.content) => {
     try {
-      await navigator.clipboard.writeText(message.content);
+      await navigator.clipboard.writeText(content);
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     } catch (err) {
@@ -26,18 +41,7 @@ export default function ChatMessage({ message, isFirst = false }: ChatMessagePro
 
   return (
     <div className={`row mb-4 ${isUser ? 'justify-content-end' : 'justify-content-start'}`}>
-      {!isUser && (
-        <div className="col-auto d-none d-md-block me-2">
-          <div 
-            className="rounded-circle bg-primary d-flex align-items-center justify-content-center"
-            style={{ width: '32px', height: '32px' }}
-          >
-            <i className="bi bi-robot text-white small"></i>
-          </div>
-        </div>
-      )}
-      
-      <div className={`col-${isUser ? '10' : '10'} col-md-${isUser ? '7' : '8'}`}>
+      <div className={`col-${isUser ? '10' : '11'} col-md-${isUser ? '7' : '10'}`}>
         <div 
           ref={messageRef}
           className={`position-relative ${
@@ -46,78 +50,66 @@ export default function ChatMessage({ message, isFirst = false }: ChatMessagePro
               : 'message-assistant'
           }`}
         >
-          {/* Copy Button */}
-          {!isUser && (
-            <button 
-              onClick={copyToClipboard}
-              className="copy-button position-absolute top-0 end-0 bg-transparent border-0 p-2 text-body-secondary"
-              title="Copy to clipboard"
-              aria-label="Copy to clipboard"
-            >
-              {copySuccess ? (
-                <i className="bi bi-check"></i>
-              ) : (
-                <i className="bi bi-clipboard"></i>
-              )}
-            </button>
+          {/* For user messages */}
+          {isUser && (
+            <div className={`markdown-content user-markdown`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {message.content}
+              </ReactMarkdown>
+            </div>
           )}
           
-          
-          <div className={`markdown-content ${isUser ? 'user-markdown' : ''}`}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {/* For system messages - display as simple centered text */}
+          {isSystemMessage && (
+            <div className="text-muted small opacity-75 my-2 text-center">
               {message.content}
-            </ReactMarkdown>
-          </div>
-          <div className="timestamp mt-1 text-end d-flex justify-content-end align-items-center gap-2">
-            {/* Model badge */}
-            {message.model && !isUser && (
-              <span className="badge bg-secondary bg-opacity-10 text-body small model-badge">
-                <i className="bi bi-cpu me-1 small"></i>
-                {(() => {
-                  // Get a short display name for the model
-                  const model = AI_MODELS.find(m => m.id === message.model);
-                  if (model) {
-                    // Return just the model type (e.g., "GPT-4o Mini" from "Azure GPT-4o Mini")
-                    const parts = model.name.split(' ');
-                    return parts.length > 1 ? parts.slice(1).join(' ') : model.name;
-                  }
-                  return message.model.split('_').slice(-1)[0].toUpperCase();
-                })()}
-              </span>
-            )}
-            
-            {/* Response time */}
-            {message.responseTimeMs && !isUser && (
-              <span className="badge bg-secondary bg-opacity-10 text-body small model-badge">
-                <i className="bi bi-stopwatch me-1 small"></i>
-                {(() => {
-                  // Format the response time in seconds or milliseconds
-                  const ms = message.responseTimeMs;
-                  return ms >= 1000 
-                    ? `${(ms / 1000).toFixed(1)}s`  // Show in seconds for times ≥ 1 second
-                    : `${ms}ms`;                    // Show in milliseconds otherwise
-                })()}
-              </span>
-            )}
-            
-            {/* Timestamp */}
-            <span>
-              {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
+            </div>
+          )}
+          
+          {/* For meaningful Box AI responses - use ResponseVariants */}
+          {isBoxAIResponse && (
+            <>
+              <ResponseVariants
+                original={{
+                  content: message.content,
+                  timestamp: message.timestamp,
+                  model: message.model,
+                  responseTimeMs: message.responseTimeMs
+                }}
+                variants={message.variants || []}
+                onCopy={copyToClipboard}
+                copySuccess={copySuccess}
+              />
+              
+              {/* Action buttons for regeneration */}
+              {onRegenerateResponse && (
+                <div className="message-actions d-flex mt-3">
+                  <button 
+                    onClick={() => onRegenerateResponse(message.id, true)}
+                    className="btn btn-sm btn-outline-primary me-2"
+                    disabled={isRegenerating}
+                  >
+                    {isRegenerating ? (
+                      <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    ) : (
+                      <i className="bi bi-arrow-counterclockwise me-1"></i>
+                    )}
+                    Regenerate
+                  </button>
+                  <button 
+                    onClick={() => onRegenerateResponse(message.id, false)}
+                    className="btn btn-sm btn-outline-secondary"
+                    disabled={isRegenerating}
+                  >
+                    <i className="bi bi-lightning me-1"></i>
+                    Regenerate (no history)
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
-      
-      {isUser && (
-        <div className="col-auto d-none d-md-block ms-2">
-          <div 
-            className="rounded-circle bg-light d-flex align-items-center justify-content-center border"
-            style={{ width: '32px', height: '32px' }}
-          >
-            <i className="bi bi-person text-secondary small"></i>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
